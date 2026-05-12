@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Làm Việc Nhóm</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="auth-overlay" class="overlay">
+        <div class="auth-box" id="step-choose">
+            <h2>Nền tảng Làm Việc Nhóm</h2>
+            <p>Vui lòng chọn thao tác</p>
+            <button onclick="showCreateForm()" class="primary-btn">Tạo nhóm mới</button>
+            <button onclick="showJoinForm()" class="secondary-btn">Vào nhóm đã có</button>
+        </div>
+
+        <div class="auth-box hidden" id="step-create">
+            <h2>Tạo nhóm mới</h2>
+            <input type="text" id="create-purpose" placeholder="Mục đích nhóm (VD: Ôn thi Web)">
+            <input type="number" id="create-max-members" placeholder="Số lượng thành viên" min="2" max="20">
+            <input type="text" id="create-leader-name" placeholder="Tên trưởng nhóm (VD: Hoàng)">
+            <input type="text" id="create-leader-mssv" placeholder="Mã số sinh viên (Trưởng nhóm)">
+            <input type="password" id="create-password" placeholder="Mật khẩu nhóm">
+            <button onclick="handleCreateGroup()" class="primary-btn">Xác nhận tạo nhóm</button>
+            <button onclick="showChooseStep()" class="back-btn">Quay lại</button>
+            <p id="create-error" class="error-text hidden">Vui lòng điền đủ thông tin!</p>
+        </div>
+
+        <div class="auth-box hidden" id="step-join">
+            <h2>Vào nhóm</h2>
+            <input type="text" id="join-mssv" placeholder="Mã số sinh viên của bạn">
+            <input type="password" id="join-password" placeholder="Mật khẩu nhóm">
+            <button onclick="handleJoinGroup()" class="primary-btn">Đăng nhập</button>
+            <button onclick="showChooseStep()" class="back-btn">Quay lại</button>
+            <p id="join-error" class="error-text hidden"></p>
+        </div>
+    </div>
+
+    <div class="container hidden" id="main-app">
+        <aside class="sidebar">
+            <h2>Làm Việc Nhóm</h2>
+            <div class="room-info">
+                <p>Mục đích nhóm:</p>
+                <h3 id="display-group-purpose">Đang tải...</h3>
+            </div>
+            <nav>
+                <ul id="sidebar-nav">
+                    <li class="active" data-target="dashboard-view">Dashboard</li>
+                    <li data-target="documents-view">Tài liệu</li>
+                    <li data-target="members-view">Thành viên</li>
+                    <li data-target="settings-view">Cài đặt</li>
+                </ul>
+            </nav>
+            <div class="logout-section">
+                <button onclick="handleLogout()" class="logout-btn">Đăng xuất</button>
+            </div>
+        </aside>
+        <main class="content">
+            <header>
+                <h1 id="header-title">Đang tải...</h1>
+                <div class="user-profile" id="display-user-name">Đang tải...</div>
+            </header>
+            
+            <div id="dashboard-view" class="view-section">
+                <div class="dashboard-grid">
+                    <div class="card countdown-card">
+                        <div class="card-header">
+                            <h3>Đếm ngược đến Deadline</h3>
+                            <button class="edit-btn leader-only" onclick="editExamDate()">✎ Sửa</button>
+                        </div>
+                        <div class="timer" id="timer">00:00:00:00</div>
+                        <p id="exam-date-text">Deadline: Chưa thiết lập</p>
+                    </div>
+                    <div class="card progress-card">
+                        <h3>Tiến độ nhóm</h3>
+                        <div class="progress-container">
+                            <div class="progress-bar" id="progress-bar"></div>
+                        </div>
+                        <p id="progress-text">0% hoàn thành</p>
+                    </div>
+                    <div class="card tasks-card">
+                        <div class="card-header">
+                            <h3>Nhiệm vụ chung</h3>
+                        </div>
+                        <ul id="task-list">
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div id="documents-view" class="view-section hidden">
+                <div class="card">
+                    <h3>Tài liệu & Kết quả công việc</h3>
+                    <p class="desc">Các thành viên upload file tài liệu hoặc source code của mình tại đây.</p>
+                    <div id="doc-list" class="doc-grid">
+                    </div>
+                </div>
+            </div>
+
+            <div id="members-view" class="view-section hidden">
+                <div class="card leader-only-content leader-only" style="margin-bottom: 20px;">
+                    <h3>Thêm thành viên mới</h3>
+                    <div class="add-member-form">
+                        <input type="text" id="new-member-name" placeholder="Họ và tên">
+                        <input type="text" id="new-member-mssv" placeholder="Mã sinh viên">
+                        <input type="text" id="new-member-task" placeholder="Nhiệm vụ ban đầu">
+                        <button onclick="addMember()" class="action-btn">Thêm vào nhóm</button>
+                    </div>
+                    <p id="add-member-error" class="error-text hidden"></p>
+                </div>
+
+                <div class="card">
+                    <h3>Danh sách thành viên <span id="member-count-text"></span></h3>
+                    <table class="member-table">
+                        <thead>
+                            <tr>
+                                <th>Họ và Tên</th>
+                                <th>Mã Sinh Viên</th>
+                                <th>Công việc phụ trách</th>
+                            </tr>
+                        </thead>
+                        <tbody id="member-tbody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="settings-view" class="view-section hidden">
+                <div class="card leader-only-content" id="settings-content">
+                    <h3>Cài đặt nhóm (Chỉ dành cho Trưởng nhóm)</h3>
+                    <div class="setting-group">
+                        <label>Mục đích nhóm:</label>
+                        <input type="text" id="setting-purpose">
+                        <button onclick="updateGroupPurpose()" class="action-btn">Cập nhật mục đích</button>
+                    </div>
+                    <div class="setting-group">
+                        <label>Số lượng thành viên tối đa:</label>
+                        <input type="number" id="setting-max-members" min="2">
+                        <button onclick="updateMaxMembers()" class="action-btn">Cập nhật số lượng</button>
+                    </div>
+                    <div class="setting-group">
+                        <label>Đổi mật khẩu nhóm:</label>
+                        <input type="text" id="new-password" placeholder="Nhập mật khẩu mới">
+                        <button onclick="changePassword()" class="action-btn">Cập nhật mật khẩu</button>
+                    </div>
+                </div>
+                <div class="card member-restricted" id="settings-restricted">
+                    <h3>Cài đặt nhóm</h3>
+                    <p style="color: #f43f5e;">Chỉ trưởng nhóm mới có quyền truy cập vào khu vực cài đặt.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
