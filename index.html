@@ -17,8 +17,9 @@
 
         <div class="auth-box hidden" id="step-create">
             <h2>Tạo nhóm mới</h2>
+            <input type="text" id="create-group-id" placeholder="Mã nhóm (Tự chọn, VD: WEB2026)">
             <input type="text" id="create-purpose" placeholder="Mục đích nhóm (VD: Ôn thi Web)">
-            <input type="number" id="create-max-members" placeholder="Số lượng thành viên" min="2" max="20">
+            <input type="number" id="create-max-members" placeholder="Số lượng thành viên tối đa" min="2" max="20">
             <input type="text" id="create-leader-name" placeholder="Tên trưởng nhóm (VD: Hoàng)">
             <input type="text" id="create-leader-mssv" placeholder="Mã số sinh viên (Trưởng nhóm)">
             <input type="password" id="create-password" placeholder="Mật khẩu nhóm">
@@ -29,6 +30,7 @@
 
         <div class="auth-box hidden" id="step-join">
             <h2>Vào nhóm</h2>
+            <input type="text" id="join-group-id" placeholder="Mã nhóm (VD: WEB2026)">
             <input type="text" id="join-mssv" placeholder="Mã số sinh viên của bạn">
             <input type="password" id="join-password" placeholder="Mật khẩu nhóm">
             <button onclick="handleJoinGroup()" class="primary-btn">Đăng nhập</button>
@@ -41,7 +43,7 @@
         <aside class="sidebar">
             <h2>Làm Việc Nhóm</h2>
             <div class="room-info">
-                <p>Mục đích nhóm:</p>
+                <p>Mã nhóm: <strong id="display-group-id" style="color: #38bdf8;">Đang tải...</strong></p>
                 <h3 id="display-group-purpose">Đang tải...</h3>
             </div>
             <nav>
