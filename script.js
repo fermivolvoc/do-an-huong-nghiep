@@ -1,15 +1,22 @@
 const STORAGE_KEY = "teamWorkGroupsData";
-// Lấy dữ liệu từ LocalStorage, nếu chưa có thì tạo object rỗng chứa danh sách các nhóm
 let appData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { groups: {} };
 
-let currentGroupId = null; // ID của nhóm đang thao tác
-let currentGroup = null;   // Dữ liệu chi tiết của nhóm đang thao tác
-let currentUser = null;    // Người dùng hiện tại
+let currentGroupId = null;
+let currentGroup = null;
+let currentUser = null;
 let timerInterval = null;
 
-// Hàm lưu dữ liệu vào LocalStorage mỗi khi có thay đổi
 function saveData() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+}
+
+function generateGroupId() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
 }
 
 function showChooseStep() {
@@ -22,11 +29,17 @@ function showChooseStep() {
 function showCreateForm() {
     document.getElementById("step-choose").classList.add("hidden");
     document.getElementById("step-create").classList.remove("hidden");
+    
+    let newId = generateGroupId();
+    while(appData.groups[newId]) {
+        newId = generateGroupId();
+    }
+    document.getElementById("create-group-id").value = newId;
+    
     clearErrors();
 }
 
 function showJoinForm() {
-    // Nếu hệ thống hoàn toàn chưa có nhóm nào được tạo
     if (Object.keys(appData.groups).length === 0) {
         alert("Chưa có nhóm nào được tạo trên hệ thống! Vui lòng tạo nhóm mới trước.");
         return;
@@ -57,14 +70,12 @@ function handleCreateGroup() {
         return;
     }
 
-    // Kiểm tra xem Mã nhóm đã tồn tại chưa
     if (appData.groups[groupId]) {
         errorText.innerText = "Mã nhóm này đã tồn tại! Vui lòng chọn mã khác.";
         errorText.classList.remove("hidden");
         return;
     }
 
-    // Khởi tạo dữ liệu nhóm mới
     appData.groups[groupId] = {
         purpose: purpose,
         maxMembers: parseInt(maxMembers),
@@ -86,7 +97,7 @@ function handleCreateGroup() {
         }]
     };
 
-    saveData(); // Lưu vào LocalStorage
+    saveData();
 
     currentGroupId = groupId;
     currentGroup = appData.groups[groupId];
@@ -107,7 +118,6 @@ function handleJoinGroup() {
         return;
     }
 
-    // Kiểm tra Mã nhóm
     if (!appData.groups[inputGroupId]) {
         errorText.innerText = "Mã nhóm không tồn tại!";
         errorText.classList.remove("hidden");
@@ -116,14 +126,12 @@ function handleJoinGroup() {
 
     const targetGroup = appData.groups[inputGroupId];
 
-    // Kiểm tra mật khẩu
     if (inputPass !== targetGroup.password) {
         errorText.innerText = "Mật khẩu nhóm không chính xác!";
         errorText.classList.remove("hidden");
         return;
     }
 
-    // Kiểm tra MSSV trong danh sách
     const member = targetGroup.members.find(m => m.mssv === inputMssv);
     if (!member) {
         errorText.innerText = "Bạn không có trong danh sách nhóm này!";
@@ -131,7 +139,6 @@ function handleJoinGroup() {
         return;
     }
 
-    // Đăng nhập thành công
     currentGroupId = inputGroupId;
     currentGroup = targetGroup;
 
@@ -152,7 +159,6 @@ function handleLogout() {
     document.getElementById("main-app").classList.add("hidden");
     document.getElementById("auth-overlay").classList.remove("hidden");
     
-    // Clear form inputs
     document.getElementById("join-group-id").value = "";
     document.getElementById("join-mssv").value = "";
     document.getElementById("join-password").value = "";
@@ -186,7 +192,6 @@ function enterApp() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(updateTimer, 1000);
     
-    // Reset tabs
     document.querySelectorAll('#sidebar-nav li').forEach(nav => nav.classList.remove('active'));
     document.querySelector('#sidebar-nav li[data-target="dashboard-view"]').classList.add('active');
     document.querySelectorAll('.view-section').forEach(section => section.classList.add('hidden'));
@@ -258,7 +263,7 @@ function addMember() {
         completed: false
     });
 
-    saveData(); // Lưu thay đổi
+    saveData();
 
     document.getElementById("new-member-name").value = "";
     document.getElementById("new-member-mssv").value = "";
@@ -351,7 +356,7 @@ function toggleTask(id) {
     const task = currentGroup.tasks.find(t => t.id === id);
     if (task) {
         task.completed = !task.completed;
-        saveData(); // Lưu thay đổi trạng thái
+        saveData();
         renderTasks();
     }
 }
@@ -366,7 +371,7 @@ function editTask(id) {
             const member = currentGroup.members.find(m => m.name === task.assignee);
             if (member) member.task = newText;
 
-            saveData(); // Lưu thay đổi
+            saveData();
             renderTasks();
             renderMembersTable();
         }
@@ -413,7 +418,7 @@ function editExamDate() {
         if (!isNaN(parsed)) {
             currentGroup.examDateString = newDate;
             currentGroup.examDate = parsed;
-            saveData(); // Lưu thay đổi deadline
+            saveData();
 
             document.getElementById("exam-date-text").innerText = `Deadline: ${currentGroup.examDateString.replace("T", " ")}`;
             updateTimer();
@@ -433,7 +438,6 @@ function renderDocuments() {
         
         const canUpload = (currentUser.role === 'leader') || (currentUser.name === m.name);
         
-        // Hiển thị tên file nếu đã có, nếu chưa thì báo "Chưa có file"
         const fileDisplay = m.uploadedFile ? `<strong style="color: #38bdf8;">${m.uploadedFile}</strong>` : `<i>Chưa có file</i>`;
         
         docCard.innerHTML = `
@@ -448,16 +452,14 @@ function renderDocuments() {
     });
 }
 
-// Xử lý khi bấm nút Nộp
 function handleUpload(memberIndex) {
     const fileInput = document.getElementById(`file-input-${memberIndex}`);
     
     if (fileInput.files.length > 0) {
         const fileName = fileInput.files[0].name;
-        // Lưu tên file vào dữ liệu của thành viên đó
         currentGroup.members[memberIndex].uploadedFile = fileName;
-        saveData(); // Cập nhật LocalStorage
-        renderDocuments(); // Vẽ lại giao diện để hiện tên file
+        saveData();
+        renderDocuments();
         alert(`Đã nộp file "${fileName}" thành công!`);
     } else {
         alert("Vui lòng chọn một file trước khi bấm Nộp!");
