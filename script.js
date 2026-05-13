@@ -1,10 +1,16 @@
-let groupData = null;
-let membersData = [];
-let tasks = [];
-let currentUser = null;
-let examDate = null;
-let examDateString = "";
+const STORAGE_KEY = "teamWorkGroupsData";
+// Lấy dữ liệu từ LocalStorage, nếu chưa có thì tạo object rỗng chứa danh sách các nhóm
+let appData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { groups: {} };
+
+let currentGroupId = null; // ID của nhóm đang thao tác
+let currentGroup = null;   // Dữ liệu chi tiết của nhóm đang thao tác
+let currentUser = null;    // Người dùng hiện tại
 let timerInterval = null;
+
+// Hàm lưu dữ liệu vào LocalStorage mỗi khi có thay đổi
+function saveData() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+}
 
 function showChooseStep() {
     document.getElementById("step-choose").classList.remove("hidden");
@@ -20,9 +26,9 @@ function showCreateForm() {
 }
 
 function showJoinForm() {
-    if (!groupData) {
-        document.getElementById("join-error").innerText = "Chưa có nhóm nào được tạo trên hệ thống!";
-        document.getElementById("join-error").classList.remove("hidden");
+    // Nếu hệ thống hoàn toàn chưa có nhóm nào được tạo
+    if (Object.keys(appData.groups).length === 0) {
+        alert("Chưa có nhóm nào được tạo trên hệ thống! Vui lòng tạo nhóm mới trước.");
         return;
     }
     document.getElementById("step-choose").classList.add("hidden");
@@ -37,71 +43,97 @@ function clearErrors() {
 }
 
 function handleCreateGroup() {
+    const groupId = document.getElementById("create-group-id").value.trim();
     const purpose = document.getElementById("create-purpose").value.trim();
     const maxMembers = document.getElementById("create-max-members").value;
     const leaderName = document.getElementById("create-leader-name").value.trim();
     const leaderMssv = document.getElementById("create-leader-mssv").value.trim();
     const password = document.getElementById("create-password").value.trim();
+    const errorText = document.getElementById("create-error");
 
-    if (!purpose || !maxMembers || !leaderName || !leaderMssv || !password) {
-        document.getElementById("create-error").classList.remove("hidden");
+    if (!groupId || !purpose || !maxMembers || !leaderName || !leaderMssv || !password) {
+        errorText.innerText = "Vui lòng điền đủ thông tin!";
+        errorText.classList.remove("hidden");
         return;
     }
 
-    groupData = {
+    // Kiểm tra xem Mã nhóm đã tồn tại chưa
+    if (appData.groups[groupId]) {
+        errorText.innerText = "Mã nhóm này đã tồn tại! Vui lòng chọn mã khác.";
+        errorText.classList.remove("hidden");
+        return;
+    }
+
+    // Khởi tạo dữ liệu nhóm mới
+    appData.groups[groupId] = {
         purpose: purpose,
         maxMembers: parseInt(maxMembers),
-        password: password
+        password: password,
+        examDateString: "",
+        examDate: null,
+        members: [{
+            name: leaderName,
+            mssv: leaderMssv,
+            role: "Trưởng nhóm",
+            task: "Quản lý nhóm",
+            uploadedFile: ""
+        }],
+        tasks: [{
+            id: Date.now(),
+            text: "Quản lý nhóm",
+            assignee: leaderName,
+            completed: false
+        }]
     };
 
-    membersData = [];
-    tasks = [];
-    examDate = null;
-    examDateString = "";
+    saveData(); // Lưu vào LocalStorage
 
-    membersData.push({
-        name: leaderName,
-        mssv: leaderMssv,
-        role: "Trưởng nhóm",
-        task: "Quản lý nhóm"
-    });
-
-    tasks.push({
-        id: Date.now(),
-        text: "Quản lý nhóm",
-        assignee: leaderName,
-        completed: false
-    });
-
+    currentGroupId = groupId;
+    currentGroup = appData.groups[groupId];
     currentUser = { name: leaderName, mssv: leaderMssv, role: "leader" };
 
     enterApp();
 }
 
 function handleJoinGroup() {
+    const inputGroupId = document.getElementById("join-group-id").value.trim();
     const inputMssv = document.getElementById("join-mssv").value.trim();
     const inputPass = document.getElementById("join-password").value.trim();
     const errorText = document.getElementById("join-error");
 
-    if (!inputMssv || !inputPass) {
+    if (!inputGroupId || !inputMssv || !inputPass) {
         errorText.innerText = "Vui lòng nhập đủ thông tin!";
         errorText.classList.remove("hidden");
         return;
     }
 
-    if (inputPass !== groupData.password) {
+    // Kiểm tra Mã nhóm
+    if (!appData.groups[inputGroupId]) {
+        errorText.innerText = "Mã nhóm không tồn tại!";
+        errorText.classList.remove("hidden");
+        return;
+    }
+
+    const targetGroup = appData.groups[inputGroupId];
+
+    // Kiểm tra mật khẩu
+    if (inputPass !== targetGroup.password) {
         errorText.innerText = "Mật khẩu nhóm không chính xác!";
         errorText.classList.remove("hidden");
         return;
     }
 
-    const member = membersData.find(m => m.mssv === inputMssv);
-    
+    // Kiểm tra MSSV trong danh sách
+    const member = targetGroup.members.find(m => m.mssv === inputMssv);
     if (!member) {
-        errorText.innerText = "Bạn không có trong danh sách nhóm";
+        errorText.innerText = "Bạn không có trong danh sách nhóm này!";
         errorText.classList.remove("hidden");
         return;
     }
+
+    // Đăng nhập thành công
+    currentGroupId = inputGroupId;
+    currentGroup = targetGroup;
 
     if (member.role === "Trưởng nhóm") {
         currentUser = { name: member.name, mssv: member.mssv, role: "leader" };
@@ -113,10 +145,15 @@ function handleJoinGroup() {
 }
 
 function handleLogout() {
+    currentGroupId = null;
+    currentGroup = null;
     currentUser = null;
+    
     document.getElementById("main-app").classList.add("hidden");
     document.getElementById("auth-overlay").classList.remove("hidden");
     
+    // Clear form inputs
+    document.getElementById("join-group-id").value = "";
     document.getElementById("join-mssv").value = "";
     document.getElementById("join-password").value = "";
     
@@ -128,18 +165,19 @@ function enterApp() {
     document.getElementById("auth-overlay").classList.add("hidden");
     document.getElementById("main-app").classList.remove("hidden");
     
-    document.getElementById("header-title").innerText = groupData.purpose;
-    document.getElementById("display-group-purpose").innerText = groupData.purpose;
-    document.getElementById("setting-purpose").value = groupData.purpose;
-    document.getElementById("setting-max-members").value = groupData.maxMembers;
+    document.getElementById("header-title").innerText = currentGroup.purpose;
+    document.getElementById("display-group-id").innerText = currentGroupId;
+    document.getElementById("display-group-purpose").innerText = currentGroup.purpose;
+    document.getElementById("setting-purpose").value = currentGroup.purpose;
+    document.getElementById("setting-max-members").value = currentGroup.maxMembers;
     
     document.getElementById("display-user-name").innerText = `${currentUser.name} (${currentUser.role === 'leader' ? 'Trưởng nhóm' : 'Thành viên'})`;
     
     initAppPermissions();
     renderApp();
     
-    if (examDate) {
-        document.getElementById("exam-date-text").innerText = `Deadline: ${examDateString.replace("T", " ")}`;
+    if (currentGroup.examDate) {
+        document.getElementById("exam-date-text").innerText = `Deadline: ${currentGroup.examDateString.replace("T", " ")}`;
     } else {
         document.getElementById("exam-date-text").innerText = `Deadline: Chưa thiết lập`;
         document.getElementById("timer").innerHTML = "00:00:00:00";
@@ -148,6 +186,7 @@ function enterApp() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(updateTimer, 1000);
     
+    // Reset tabs
     document.querySelectorAll('#sidebar-nav li').forEach(nav => nav.classList.remove('active'));
     document.querySelector('#sidebar-nav li[data-target="dashboard-view"]').classList.add('active');
     document.querySelectorAll('.view-section').forEach(section => section.classList.add('hidden'));
@@ -181,8 +220,8 @@ function addMember() {
     const errorText = document.getElementById("add-member-error");
     errorText.classList.add("hidden");
 
-    if (membersData.length >= groupData.maxMembers) {
-        errorText.innerText = `Đã đạt giới hạn ${groupData.maxMembers} thành viên!`;
+    if (currentGroup.members.length >= currentGroup.maxMembers) {
+        errorText.innerText = `Đã đạt giới hạn ${currentGroup.maxMembers} thành viên!`;
         errorText.classList.remove("hidden");
         return;
     }
@@ -197,26 +236,29 @@ function addMember() {
         return;
     }
 
-    const exists = membersData.find(m => m.mssv === mssv);
+    const exists = currentGroup.members.find(m => m.mssv === mssv);
     if (exists) {
         errorText.innerText = "Mã sinh viên này đã tồn tại trong nhóm!";
         errorText.classList.remove("hidden");
         return;
     }
 
-    membersData.push({
+    currentGroup.members.push({
         name: name,
         mssv: mssv,
         role: "Thành viên",
-        task: taskText
+        task: taskText,
+        uploadedFile: ""
     });
 
-    tasks.push({
+    currentGroup.tasks.push({
         id: Date.now(),
         text: taskText,
         assignee: name,
         completed: false
     });
+
+    saveData(); // Lưu thay đổi
 
     document.getElementById("new-member-name").value = "";
     document.getElementById("new-member-mssv").value = "";
@@ -233,11 +275,11 @@ function maskMssv(mssv) {
 }
 
 function renderMembersTable() {
-    document.getElementById("member-count-text").innerText = `(${membersData.length}/${groupData.maxMembers})`;
+    document.getElementById("member-count-text").innerText = `(${currentGroup.members.length}/${currentGroup.maxMembers})`;
     const tbody = document.getElementById("member-tbody");
     tbody.innerHTML = "";
     
-    membersData.forEach(m => {
+    currentGroup.members.forEach(m => {
         const tr = document.createElement("tr");
         
         let displayMssv = m.mssv;
@@ -258,7 +300,7 @@ function renderTasks() {
     const taskList = document.getElementById("task-list");
     taskList.innerHTML = "";
 
-    tasks.forEach(task => {
+    currentGroup.tasks.forEach(task => {
         const li = document.createElement("li");
         if (task.completed) li.classList.add("completed");
 
@@ -306,23 +348,25 @@ function renderTasks() {
 }
 
 function toggleTask(id) {
-    const task = tasks.find(t => t.id === id);
+    const task = currentGroup.tasks.find(t => t.id === id);
     if (task) {
         task.completed = !task.completed;
+        saveData(); // Lưu thay đổi trạng thái
         renderTasks();
     }
 }
 
 function editTask(id) {
-    const task = tasks.find(t => t.id === id);
+    const task = currentGroup.tasks.find(t => t.id === id);
     if (task) {
         const newText = prompt("Sửa tên nhiệm vụ:", task.text);
         if (newText !== null && newText.trim() !== "") {
             task.text = newText;
             
-            const member = membersData.find(m => m.name === task.assignee);
+            const member = currentGroup.members.find(m => m.name === task.assignee);
             if (member) member.task = newText;
 
+            saveData(); // Lưu thay đổi
             renderTasks();
             renderMembersTable();
         }
@@ -330,8 +374,8 @@ function editTask(id) {
 }
 
 function updateProgress() {
-    const total = tasks.length;
-    const completed = tasks.filter(t => t.completed).length;
+    const total = currentGroup.tasks.length;
+    const completed = currentGroup.tasks.filter(t => t.completed).length;
     const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
 
     document.getElementById("progress-bar").style.width = percentage + "%";
@@ -339,10 +383,10 @@ function updateProgress() {
 }
 
 function updateTimer() {
-    if (!examDate) return;
+    if (!currentGroup.examDate) return;
     
     const now = new Date().getTime();
-    const distance = examDate - now;
+    const distance = currentGroup.examDate - now;
 
     if (distance < 0) {
         document.getElementById("timer").innerHTML = "ĐÃ ĐẾN DEADLINE!";
@@ -362,14 +406,16 @@ function updateTimer() {
 }
 
 function editExamDate() {
-    const defaultVal = examDateString ? examDateString : "2026-06-25T08:00:00";
+    const defaultVal = currentGroup.examDateString ? currentGroup.examDateString : "2026-06-25T08:00:00";
     const newDate = prompt("Nhập deadline mới (Định dạng: YYYY-MM-DDTHH:MM:SS)\nVD: 2026-06-25T08:00:00", defaultVal);
     if (newDate) {
         const parsed = new Date(newDate).getTime();
         if (!isNaN(parsed)) {
-            examDateString = newDate;
-            examDate = parsed;
-            document.getElementById("exam-date-text").innerText = `Deadline: ${examDateString.replace("T", " ")}`;
+            currentGroup.examDateString = newDate;
+            currentGroup.examDate = parsed;
+            saveData(); // Lưu thay đổi deadline
+
+            document.getElementById("exam-date-text").innerText = `Deadline: ${currentGroup.examDateString.replace("T", " ")}`;
             updateTimer();
         } else {
             alert("Định dạng ngày không hợp lệ!");
@@ -381,47 +427,73 @@ function renderDocuments() {
     const docGrid = document.getElementById("doc-list");
     docGrid.innerHTML = "";
 
-    membersData.forEach(m => {
+    currentGroup.members.forEach((m, index) => {
         const docCard = document.createElement("div");
         docCard.classList.add("doc-card");
         
         const canUpload = (currentUser.role === 'leader') || (currentUser.name === m.name);
         
+        // Hiển thị tên file nếu đã có, nếu chưa thì báo "Chưa có file"
+        const fileDisplay = m.uploadedFile ? `<strong style="color: #38bdf8;">${m.uploadedFile}</strong>` : `<i>Chưa có file</i>`;
+        
         docCard.innerHTML = `
             <h4>Tài liệu của: ${m.name}</h4>
-            <p>File đã nộp: <i>Chưa có file</i></p>
-            <input type="file" ${canUpload ? '' : 'disabled'} title="${canUpload ? 'Tải file lên' : 'Không có quyền upload vào mục của người khác'}">
+            <p style="margin-bottom: 10px;">File đã nộp: ${fileDisplay}</p>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="file" id="file-input-${index}" ${canUpload ? '' : 'disabled'} title="${canUpload ? 'Chọn file' : 'Không có quyền'}">
+                <button class="action-btn" style="width: auto; padding: 6px 15px;" onclick="handleUpload(${index})" ${canUpload ? '' : 'disabled'}>Nộp</button>
+            </div>
         `;
         docGrid.appendChild(docCard);
     });
 }
 
+// Xử lý khi bấm nút Nộp
+function handleUpload(memberIndex) {
+    const fileInput = document.getElementById(`file-input-${memberIndex}`);
+    
+    if (fileInput.files.length > 0) {
+        const fileName = fileInput.files[0].name;
+        // Lưu tên file vào dữ liệu của thành viên đó
+        currentGroup.members[memberIndex].uploadedFile = fileName;
+        saveData(); // Cập nhật LocalStorage
+        renderDocuments(); // Vẽ lại giao diện để hiện tên file
+        alert(`Đã nộp file "${fileName}" thành công!`);
+    } else {
+        alert("Vui lòng chọn một file trước khi bấm Nộp!");
+    }
+}
+
 function updateGroupPurpose() {
     const newPurpose = document.getElementById("setting-purpose").value.trim();
     if (newPurpose) {
-        groupData.purpose = newPurpose;
-        document.getElementById("header-title").innerText = groupData.purpose;
-        document.getElementById("display-group-purpose").innerText = groupData.purpose;
+        currentGroup.purpose = newPurpose;
+        saveData();
+
+        document.getElementById("header-title").innerText = currentGroup.purpose;
+        document.getElementById("display-group-purpose").innerText = currentGroup.purpose;
         alert("Cập nhật mục đích nhóm thành công!");
     }
 }
 
 function updateMaxMembers() {
     const newMax = parseInt(document.getElementById("setting-max-members").value);
-    if (newMax >= membersData.length) {
-        groupData.maxMembers = newMax;
+    if (newMax >= currentGroup.members.length) {
+        currentGroup.maxMembers = newMax;
+        saveData();
         renderMembersTable();
         alert("Cập nhật số lượng thành viên thành công!");
     } else {
         alert("Số lượng tối đa không thể nhỏ hơn số thành viên hiện tại!");
-        document.getElementById("setting-max-members").value = groupData.maxMembers;
+        document.getElementById("setting-max-members").value = currentGroup.maxMembers;
     }
 }
 
 function changePassword() {
     const newPass = document.getElementById("new-password").value;
     if (newPass.trim() !== "") {
-        groupData.password = newPass;
+        currentGroup.password = newPass;
+        saveData();
         alert("Đã đổi mật khẩu nhóm thành công!");
         document.getElementById("new-password").value = "";
     } else {
