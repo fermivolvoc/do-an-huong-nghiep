@@ -10,7 +10,7 @@ let currentGroupId = null;
 let currentGroup = null;
 let currentUser = null;
 let timerInterval = null;
-let syncInterval = null; // Biến chạy đồng bộ ngầm
+let syncInterval = null;
 
 // --- HÀM TẢI & ĐỒNG BỘ DỮ LIỆU ĐÁM MÂY ---
 
@@ -34,7 +34,6 @@ async function loadDataFromCloud() {
     checkSession(); 
 }
 
-// Hàm đồng bộ ngầm (Real-time giả lập) không làm gián đoạn người dùng
 async function syncDataSilently() {
     if (!DATABASE_URL || DATABASE_URL.includes("thay-link-cua-ban-vao-day")) return;
     try {
@@ -45,14 +44,12 @@ async function syncDataSilently() {
                 appData = data;
                 if (!appData.groups) appData.groups = {};
                 
-                // Nếu đang ở trong App, cập nhật lại giao diện ngay lập tức
                 if (currentGroupId && appData.groups[currentGroupId]) {
                     currentGroup = appData.groups[currentGroupId];
                     renderMembersTable();
                     renderTasks();
                     renderDocuments();
                 } else if (currentGroupId && !appData.groups[currentGroupId]) {
-                    // Nếu Trưởng nhóm xóa nhóm, các thành viên tự văng ra ngoài
                     alert("Nhóm này đã bị xóa bởi Trưởng nhóm!");
                     handleLogout();
                 }
@@ -133,7 +130,6 @@ async function handleCreateGroup() {
         return;
     }
 
-    // Load lại data mới nhất trước khi tạo để tránh trùng lặp
     errorText.innerText = "Đang xử lý...";
     errorText.classList.remove("hidden");
     await syncDataSilently();
@@ -184,12 +180,11 @@ async function handleJoinGroup() {
         return;
     }
 
-    // 🔴 FIX LỖI Ở ĐÂY: Ép tải dữ liệu mới nhất từ Cloud trước khi check đăng nhập
     errorText.innerText = "Đang kết nối...";
     errorText.style.color = "#38bdf8"; 
     errorText.classList.remove("hidden");
     await syncDataSilently();
-    errorText.style.color = "#f43f5e"; // Đổi lại màu đỏ cho lỗi
+    errorText.style.color = "#f43f5e"; 
 
     if (!appData.groups[inputGroupId]) {
         errorText.innerText = "Mã nhóm không tồn tại!";
@@ -238,6 +233,7 @@ function handleLeaveGroup() {
         if (confirm("CẢNH BÁO: Việc thoát nhóm sẽ XÓA TOÀN BỘ dữ liệu vĩnh viễn trên Cloud. Bạn có chắc chắn?")) {
             delete appData.groups[currentGroupId];
             saveData();
+            clearSession();
             handleLogout();
             alert("Đã xóa nhóm thành công!");
         }
@@ -246,6 +242,7 @@ function handleLeaveGroup() {
             currentGroup.members = currentGroup.members.filter(m => m.mssv !== currentUser.mssv);
             currentGroup.tasks = currentGroup.tasks.filter(t => t.assignee !== currentUser.name);
             saveData();
+            clearSession();
             handleLogout();
             alert("Đã thoát nhóm.");
         }
@@ -481,18 +478,35 @@ function updateTimer() {
         String(minutes).padStart(2, '0') + "m : " + String(seconds).padStart(2, '0') + "s";
 }
 
+/* --- XỬ LÝ GIAO DIỆN CẬP NHẬT DEADLINE --- */
 function editExamDate() {
-    const defaultVal = currentGroup.examDateString ? currentGroup.examDateString : "2026-06-25T08:00:00";
-    const newDate = prompt("Nhập deadline mới (Định dạng: YYYY-MM-DDTHH:MM:SS)\nVD: 2026-06-25T08:00:00", defaultVal);
-    if (newDate) {
-        const parsed = new Date(newDate).getTime();
-        if (!isNaN(parsed)) {
-            currentGroup.examDateString = newDate;
-            currentGroup.examDate = parsed;
-            saveData();
-            document.getElementById("exam-date-text").innerText = `Deadline: ${currentGroup.examDateString.replace("T", " ")}`;
-            updateTimer();
-        } else alert("Định dạng ngày không hợp lệ!");
+    document.getElementById("deadline-modal").classList.remove("hidden");
+    if (currentGroup.examDateString) {
+        document.getElementById("deadline-input").value = currentGroup.examDateString;
+    }
+}
+
+function closeDeadlineModal() {
+    document.getElementById("deadline-modal").classList.add("hidden");
+}
+
+function saveDeadline() {
+    const inputVal = document.getElementById("deadline-input").value;
+    if (!inputVal) {
+        alert("Vui lòng chọn thời gian hoàn thành!");
+        return;
+    }
+
+    const parsed = new Date(inputVal).getTime();
+    if (!isNaN(parsed)) {
+        currentGroup.examDateString = inputVal;
+        currentGroup.examDate = parsed;
+        saveData();
+        document.getElementById("exam-date-text").innerText = `Deadline: ${currentGroup.examDateString.replace("T", " ")}`;
+        updateTimer();
+        closeDeadlineModal();
+    } else {
+        alert("Định dạng ngày giờ không hợp lệ!");
     }
 }
 
@@ -509,7 +523,7 @@ function renderDocuments() {
         docCard.innerHTML = `
             <h4>Tài liệu của: ${m.name}</h4>
             <p style="margin-bottom: 10px;">File đã nộp: ${fileDisplay}</p>
-            <div style="display: flex; gap: 10px; align-items: center;">
+            <div class="upload-group">
                 <input type="file" id="file-input-${index}" ${canUpload ? '' : 'disabled'} title="${canUpload ? 'Chọn file' : 'Không có quyền'}">
                 <button class="action-btn" style="width: auto; padding: 6px 15px;" onclick="handleUpload(${index})" ${canUpload ? '' : 'disabled'}>Nộp</button>
             </div>
@@ -584,6 +598,5 @@ function checkSession() {
     document.getElementById("main-app").classList.add("hidden");
 }
 
-// KHỞI ĐỘNG CHƯƠNG TRÌNH & BẬT ĐỒNG BỘ NGẦM (MỖI 2 GIÂY)
 loadDataFromCloud();
 setInterval(syncDataSilently, 2000);
