@@ -451,3 +451,76 @@ input[type="checkbox"]:disabled {
 .hidden {
     display: none !important;
 }
+/* =========================================
+   GIAO DIỆN CHO ĐIỆN THOẠI (RESPONSIVE)
+   ========================================= */
+@media screen and (max-width: 768px) {
+    /* Đổi hướng xếp của layout chính từ ngang sang dọc */
+    .container {
+        flex-direction: column;
+    }
+    
+    /* Chỉnh lại thanh menu ngang ra cho điện thoại */
+    .sidebar {
+        width: 100%;
+        height: auto;
+        padding: 15px;
+    }
+    .sidebar h2 {
+        margin-bottom: 15px;
+    }
+    .sidebar nav ul {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .sidebar nav ul li {
+        flex: 1;
+        text-align: center;
+        padding: 10px;
+        margin-bottom: 0;
+        font-size: 0.9rem;
+    }
+    
+    /* Box đăng nhập thu gọn lại */
+    .auth-box {
+        width: 90%;
+        padding: 20px;
+    }
+
+    /* Các lưới 2 cột chuyển thành 1 cột */
+    .dashboard-grid, .doc-grid {
+        grid-template-columns: 1fr;
+    }
+    .tasks-card {
+        grid-column: span 1;
+    }
+
+    /* Chỉnh lại Header */
+    header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+
+    /* Bảng thành viên cho phép cuộn ngang nếu màn hình quá nhỏ */
+    .member-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    /* Các nút tác vụ trong bảng nhiệm vụ xếp dọc lại cho dễ bấm */
+    .task-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    .task-actions {
+        margin-top: 10px;
+    }
+    #task-list li {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
