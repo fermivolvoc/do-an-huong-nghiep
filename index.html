@@ -37,6 +37,17 @@
         </div>
     </div>
 
+    <!-- Modal cập nhật Deadline -->
+    <div id="deadline-modal" class="overlay hidden" style="z-index: 2000;">
+        <div class="auth-box">
+            <h2>Cập nhật Deadline</h2>
+            <p>Chọn ngày và giờ hoàn thành nhiệm vụ</p>
+            <input type="datetime-local" id="deadline-input">
+            <button onclick="saveDeadline()" class="primary-btn">Lưu thay đổi</button>
+            <button onclick="closeDeadlineModal()" class="back-btn">Hủy</button>
+        </div>
+    </div>
+
     <div class="container hidden" id="main-app">
         <aside class="sidebar">
             <h2>Làm Việc Nhóm</h2>
