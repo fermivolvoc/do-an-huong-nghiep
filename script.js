@@ -1,15 +1,54 @@
-const STORAGE_KEY = "teamWorkGroupsData";
 const SESSION_KEY = "teamWorkCurrentSession";
 
-let appData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { groups: {} };
+// 🔴 BƯỚC QUAN TRỌNG NHẤT: Dán đường link Firebase Realtime Database của bạn vào đây!
+// Lưu ý cực kỳ quan trọng: PHẢI THÊM CHỮ "/appData.json" Ở CUỐI ĐƯỜNG LINK.
+const DATABASE_URL = "https://doan-10a08-default-rtdb.asia-southeast1.firebasedatabase.app/";
+
+let appData = { groups: {} };
 
 let currentGroupId = null;
 let currentGroup = null;
 let currentUser = null;
 let timerInterval = null;
 
+async function loadDataFromCloud() {
+    const headerTitle = document.getElementById("step-choose").querySelector("h2");
+    if(headerTitle) headerTitle.innerText = "Đang đồng bộ dữ liệu Cloud...";
+    
+    try {
+        const response = await fetch(DATABASE_URL);
+        if (response.ok) {
+            const data = await response.json();
+            if (data) {
+                appData = data;
+            }
+        }
+    } catch (error) {
+        console.error("Lỗi khi tải dữ liệu từ Cloud:", error);
+    }
+
+    if (!appData.groups) {
+        appData.groups = {};
+    }
+
+    if(headerTitle) headerTitle.innerText = "Nền tảng Làm Việc Nhóm";
+    
+    checkSession(); 
+}
+
 function saveData() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+    if (DATABASE_URL.includes("thay-link-cua-ban-vao-day")) {
+        console.warn("Bạn chưa thay DATABASE_URL! Dữ liệu sẽ không được lưu lên mạng.");
+        return;
+    }
+
+    fetch(DATABASE_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appData)
+    }).catch(error => {
+        console.error("Lỗi khi lưu dữ liệu lên Cloud:", error);
+    });
 }
 
 function saveSession(groupId, mssv) {
@@ -172,7 +211,7 @@ function handleLogout() {
 
 function handleLeaveGroup() {
     if (currentUser.role === 'leader') {
-        if (confirm("CẢNH BÁO: Bạn là Trưởng nhóm! Việc thoát nhóm sẽ XÓA TOÀN BỘ dữ liệu của nhóm này vĩnh viễn. Bạn có chắc chắn muốn xóa nhóm không?")) {
+        if (confirm("CẢNH BÁO: Bạn là Trưởng nhóm! Việc thoát nhóm sẽ XÓA TOÀN BỘ dữ liệu của nhóm này vĩnh viễn trên Cloud. Bạn có chắc chắn muốn xóa nhóm không?")) {
             delete appData.groups[currentGroupId];
             saveData();
             clearSession();
@@ -570,4 +609,4 @@ function checkSession() {
     document.getElementById("main-app").classList.add("hidden");
 }
 
-checkSession();
+loadDataFromCloud();
