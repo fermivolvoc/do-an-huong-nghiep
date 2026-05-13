@@ -22,7 +22,6 @@
             <input type="number" id="create-max-members" placeholder="Số lượng thành viên tối đa" min="2" max="20">
             <input type="text" id="create-leader-name" placeholder="Tên trưởng nhóm (VD: Hoàng)">
             <input type="text" id="create-leader-mssv" placeholder="Mã số sinh viên (Trưởng nhóm)">
-            <input type="password" id="create-password" placeholder="Mật khẩu nhóm">
             <button onclick="handleCreateGroup()" class="primary-btn">Xác nhận tạo nhóm</button>
             <button onclick="showChooseStep()" class="back-btn">Quay lại</button>
             <p id="create-error" class="error-text hidden">Vui lòng điền đủ thông tin!</p>
@@ -32,7 +31,6 @@
             <h2>Vào nhóm</h2>
             <input type="text" id="join-group-id" placeholder="Mã nhóm (VD: A1B2C3)">
             <input type="text" id="join-mssv" placeholder="Mã số sinh viên của bạn">
-            <input type="password" id="join-password" placeholder="Mật khẩu nhóm">
             <button onclick="handleJoinGroup()" class="primary-btn">Đăng nhập</button>
             <button onclick="showChooseStep()" class="back-btn">Quay lại</button>
             <p id="join-error" class="error-text hidden"></p>
@@ -121,6 +119,7 @@
                                 <th>Họ và Tên</th>
                                 <th>Mã Sinh Viên</th>
                                 <th>Công việc phụ trách</th>
+                                <th>Thao tác</th>
                             </tr>
                         </thead>
                         <tbody id="member-tbody">
@@ -141,11 +140,6 @@
                         <label>Số lượng thành viên tối đa:</label>
                         <input type="number" id="setting-max-members" min="2">
                         <button onclick="updateMaxMembers()" class="action-btn">Cập nhật số lượng</button>
-                    </div>
-                    <div class="setting-group">
-                        <label>Đổi mật khẩu nhóm:</label>
-                        <input type="text" id="new-password" placeholder="Nhập mật khẩu mới">
-                        <button onclick="changePassword()" class="action-btn">Cập nhật mật khẩu</button>
                     </div>
                 </div>
                 <div class="card member-restricted" id="settings-restricted">
