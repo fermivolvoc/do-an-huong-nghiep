@@ -2,7 +2,7 @@ const SESSION_KEY = "teamWorkCurrentSession";
 
 // 🔴 BƯỚC QUAN TRỌNG NHẤT: Dán đường link Firebase Realtime Database của bạn vào đây!
 // Lưu ý cực kỳ quan trọng: PHẢI THÊM CHỮ "/appData.json" Ở CUỐI ĐƯỜNG LINK.
-const DATABASE_URL = "https://doan-10a08-default-rtdb.asia-southeast1.firebasedatabase.app/";
+const DATABASE_URL = "https://doan-10a08-default-rtdb.asia-southeast1.firebasedatabase.app/appData.json";
 
 let appData = { groups: {} };
 
