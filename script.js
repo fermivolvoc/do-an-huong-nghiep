@@ -1,5 +1,5 @@
 const STORAGE_KEY = "teamWorkGroupsData";
-const SESSION_KEY = "teamWorkCurrentSession"; // Key lưu phiên đăng nhập
+const SESSION_KEY = "teamWorkCurrentSession";
 
 let appData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { groups: {} };
 
@@ -12,7 +12,6 @@ function saveData() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
 }
 
-// Lưu thông tin đăng nhập để tự động vào app lần sau
 function saveSession(groupId, mssv) {
     localStorage.setItem(SESSION_KEY, JSON.stringify({ groupId, mssv }));
 }
@@ -72,10 +71,9 @@ function handleCreateGroup() {
     const maxMembers = document.getElementById("create-max-members").value;
     const leaderName = document.getElementById("create-leader-name").value.trim();
     const leaderMssv = document.getElementById("create-leader-mssv").value.trim();
-    const password = document.getElementById("create-password").value.trim();
     const errorText = document.getElementById("create-error");
 
-    if (!groupId || !purpose || !maxMembers || !leaderName || !leaderMssv || !password) {
+    if (!groupId || !purpose || !maxMembers || !leaderName || !leaderMssv) {
         errorText.innerText = "Vui lòng điền đủ thông tin!";
         errorText.classList.remove("hidden");
         return;
@@ -90,7 +88,6 @@ function handleCreateGroup() {
     appData.groups[groupId] = {
         purpose: purpose,
         maxMembers: parseInt(maxMembers),
-        password: password,
         examDateString: "",
         examDate: null,
         members: [{
@@ -109,7 +106,7 @@ function handleCreateGroup() {
     };
 
     saveData();
-    saveSession(groupId, leaderMssv); // Lưu phiên làm việc tự động
+    saveSession(groupId, leaderMssv);
 
     currentGroupId = groupId;
     currentGroup = appData.groups[groupId];
@@ -121,10 +118,9 @@ function handleCreateGroup() {
 function handleJoinGroup() {
     const inputGroupId = document.getElementById("join-group-id").value.trim();
     const inputMssv = document.getElementById("join-mssv").value.trim();
-    const inputPass = document.getElementById("join-password").value.trim();
     const errorText = document.getElementById("join-error");
 
-    if (!inputGroupId || !inputMssv || !inputPass) {
+    if (!inputGroupId || !inputMssv) {
         errorText.innerText = "Vui lòng nhập đủ thông tin!";
         errorText.classList.remove("hidden");
         return;
@@ -137,12 +133,6 @@ function handleJoinGroup() {
     }
 
     const targetGroup = appData.groups[inputGroupId];
-
-    if (inputPass !== targetGroup.password) {
-        errorText.innerText = "Mật khẩu nhóm không chính xác!";
-        errorText.classList.remove("hidden");
-        return;
-    }
 
     const member = targetGroup.members.find(m => m.mssv === inputMssv);
     if (!member) {
@@ -160,7 +150,7 @@ function handleJoinGroup() {
         currentUser = { name: member.name, mssv: member.mssv, role: "member" };
     }
 
-    saveSession(inputGroupId, inputMssv); // Lưu phiên làm việc tự động
+    saveSession(inputGroupId, inputMssv);
     enterApp();
 }
 
@@ -174,14 +164,12 @@ function handleLogout() {
     
     document.getElementById("join-group-id").value = "";
     document.getElementById("join-mssv").value = "";
-    document.getElementById("join-password").value = "";
     
-    clearSession(); // Xóa phiên đăng nhập khi bấm Đăng xuất
+    clearSession();
     showChooseStep();
     if (timerInterval) clearInterval(timerInterval);
 }
 
-// Xử lý khi người dùng muốn Rời khỏi nhóm hoàn toàn
 function handleLeaveGroup() {
     if (currentUser.role === 'leader') {
         if (confirm("CẢNH BÁO: Bạn là Trưởng nhóm! Việc thoát nhóm sẽ XÓA TOÀN BỘ dữ liệu của nhóm này vĩnh viễn. Bạn có chắc chắn muốn xóa nhóm không?")) {
@@ -193,15 +181,27 @@ function handleLeaveGroup() {
         }
     } else {
         if (confirm("Bạn có chắc chắn muốn thoát khỏi nhóm này không? Dữ liệu và nhiệm vụ của bạn sẽ bị xóa.")) {
-            // Xóa user khỏi danh sách thành viên
             currentGroup.members = currentGroup.members.filter(m => m.mssv !== currentUser.mssv);
-            // Xóa các nhiệm vụ do user này phụ trách
             currentGroup.tasks = currentGroup.tasks.filter(t => t.assignee !== currentUser.name);
             
             saveData();
             clearSession();
             handleLogout();
             alert("Bạn đã thoát khỏi nhóm thành công.");
+        }
+    }
+}
+
+function kickMember(mssv) {
+    if (confirm("Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?")) {
+        const memberToRemove = currentGroup.members.find(m => m.mssv === mssv);
+        if (memberToRemove) {
+            currentGroup.members = currentGroup.members.filter(m => m.mssv !== mssv);
+            currentGroup.tasks = currentGroup.tasks.filter(t => t.assignee !== memberToRemove.name);
+            saveData();
+            renderMembersTable();
+            renderTasks();
+            renderDocuments();
         }
     }
 }
@@ -335,6 +335,7 @@ function renderMembersTable() {
             <td><strong>${m.name}</strong> ${m.role === 'Trưởng nhóm' ? '👑' : ''}</td>
             <td>${displayMssv}</td>
             <td>${m.task}</td>
+            <td>${currentUser.role === 'leader' && m.role !== 'Trưởng nhóm' ? `<button class="kick-btn" onclick="kickMember('${m.mssv}')">Đuổi</button>` : '-'}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -530,18 +531,6 @@ function updateMaxMembers() {
     }
 }
 
-function changePassword() {
-    const newPass = document.getElementById("new-password").value;
-    if (newPass.trim() !== "") {
-        currentGroup.password = newPass;
-        saveData();
-        alert("Đã đổi mật khẩu nhóm thành công!");
-        document.getElementById("new-password").value = "";
-    } else {
-        alert("Mật khẩu không được để trống!");
-    }
-}
-
 const navItems = document.querySelectorAll('#sidebar-nav li');
 const viewSections = document.querySelectorAll('.view-section');
 
@@ -557,7 +546,6 @@ navItems.forEach(item => {
     });
 });
 
-// KIỂM TRA PHIÊN ĐĂNG NHẬP (AUTO-LOGIN)
 function checkSession() {
     const sessionStr = localStorage.getItem(SESSION_KEY);
     if (sessionStr) {
@@ -566,7 +554,6 @@ function checkSession() {
             const targetGroup = appData.groups[sessionData.groupId];
             const member = targetGroup.members.find(m => m.mssv === sessionData.mssv);
             if (member) {
-                // Phiên hợp lệ, tự động đăng nhập
                 currentGroupId = sessionData.groupId;
                 currentGroup = targetGroup;
                 currentUser = { 
@@ -579,10 +566,8 @@ function checkSession() {
             }
         }
     }
-    // Nếu không có phiên hợp lệ, hiển thị màn hình chọn ban đầu
     document.getElementById("auth-overlay").classList.remove("hidden");
     document.getElementById("main-app").classList.add("hidden");
 }
 
-// Chạy kiểm tra phiên làm việc ngay khi load trang
 checkSession();
