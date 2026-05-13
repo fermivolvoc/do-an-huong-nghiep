@@ -273,6 +273,20 @@ header {
     background-color: #38bdf8;
     color: #0f172a;
 }
+.kick-btn {
+    background: transparent;
+    border: 1px solid #f43f5e;
+    color: #f43f5e;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: 0.3s;
+}
+.kick-btn:hover {
+    background-color: #f43f5e;
+    color: #fff;
+}
 .timer {
     font-size: 2.5rem;
     font-weight: bold;
