@@ -1,7 +1,7 @@
 const SESSION_KEY = "teamWorkCurrentSession";
 
 // 🔴 BƯỚC QUAN TRỌNG NHẤT: Dán đường link Firebase Realtime Database của bạn vào đây!
-// Lưu ý cực kỳ quan trọng: PHẢI THÊM CHỮ "/appData.json" Ở CUỐI ĐƯỜNG LINK.
+// Lưu ý: PHẢI THÊM CHỮ "/appData.json" Ở CUỐI ĐƯỜNG LINK.
 const DATABASE_URL = "https://doan-10a08-default-rtdb.asia-southeast1.firebasedatabase.app/appData.json";
 
 let appData = { groups: {} };
@@ -10,6 +10,9 @@ let currentGroupId = null;
 let currentGroup = null;
 let currentUser = null;
 let timerInterval = null;
+let syncInterval = null; // Biến chạy đồng bộ ngầm
+
+// --- HÀM TẢI & ĐỒNG BỘ DỮ LIỆU ĐÁM MÂY ---
 
 async function loadDataFromCloud() {
     const headerTitle = document.getElementById("step-choose").querySelector("h2");
@@ -19,36 +22,54 @@ async function loadDataFromCloud() {
         const response = await fetch(DATABASE_URL);
         if (response.ok) {
             const data = await response.json();
-            if (data) {
-                appData = data;
-            }
+            if (data) appData = data;
         }
     } catch (error) {
         console.error("Lỗi khi tải dữ liệu từ Cloud:", error);
     }
 
-    if (!appData.groups) {
-        appData.groups = {};
-    }
-
+    if (!appData.groups) appData.groups = {};
     if(headerTitle) headerTitle.innerText = "Nền tảng Làm Việc Nhóm";
     
     checkSession(); 
 }
 
-function saveData() {
-    if (DATABASE_URL.includes("thay-link-cua-ban-vao-day")) {
-        console.warn("Bạn chưa thay DATABASE_URL! Dữ liệu sẽ không được lưu lên mạng.");
-        return;
+// Hàm đồng bộ ngầm (Real-time giả lập) không làm gián đoạn người dùng
+async function syncDataSilently() {
+    if (!DATABASE_URL || DATABASE_URL.includes("thay-link-cua-ban-vao-day")) return;
+    try {
+        const response = await fetch(DATABASE_URL);
+        if (response.ok) {
+            const data = await response.json();
+            if (data && JSON.stringify(data) !== JSON.stringify(appData)) {
+                appData = data;
+                if (!appData.groups) appData.groups = {};
+                
+                // Nếu đang ở trong App, cập nhật lại giao diện ngay lập tức
+                if (currentGroupId && appData.groups[currentGroupId]) {
+                    currentGroup = appData.groups[currentGroupId];
+                    renderMembersTable();
+                    renderTasks();
+                    renderDocuments();
+                } else if (currentGroupId && !appData.groups[currentGroupId]) {
+                    // Nếu Trưởng nhóm xóa nhóm, các thành viên tự văng ra ngoài
+                    alert("Nhóm này đã bị xóa bởi Trưởng nhóm!");
+                    handleLogout();
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Sync error:", error);
     }
+}
 
+function saveData() {
+    if (DATABASE_URL.includes("thay-link-cua-ban-vao-day")) return;
     fetch(DATABASE_URL, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(appData)
-    }).catch(error => {
-        console.error("Lỗi khi lưu dữ liệu lên Cloud:", error);
-    });
+    }).catch(error => console.error("Lỗi lưu dữ liệu:", error));
 }
 
 function saveSession(groupId, mssv) {
@@ -80,19 +101,13 @@ function showCreateForm() {
     document.getElementById("step-create").classList.remove("hidden");
     
     let newId = generateGroupId();
-    while(appData.groups[newId]) {
-        newId = generateGroupId();
-    }
+    while(appData.groups[newId]) newId = generateGroupId();
     document.getElementById("create-group-id").value = newId;
     
     clearErrors();
 }
 
 function showJoinForm() {
-    if (Object.keys(appData.groups).length === 0) {
-        alert("Chưa có nhóm nào được tạo trên hệ thống! Vui lòng tạo nhóm mới trước.");
-        return;
-    }
     document.getElementById("step-choose").classList.add("hidden");
     document.getElementById("step-join").classList.remove("hidden");
     clearErrors();
@@ -104,7 +119,7 @@ function clearErrors() {
     document.getElementById("add-member-error").classList.add("hidden");
 }
 
-function handleCreateGroup() {
+async function handleCreateGroup() {
     const groupId = document.getElementById("create-group-id").value.trim();
     const purpose = document.getElementById("create-purpose").value.trim();
     const maxMembers = document.getElementById("create-max-members").value;
@@ -118,9 +133,13 @@ function handleCreateGroup() {
         return;
     }
 
+    // Load lại data mới nhất trước khi tạo để tránh trùng lặp
+    errorText.innerText = "Đang xử lý...";
+    errorText.classList.remove("hidden");
+    await syncDataSilently();
+
     if (appData.groups[groupId]) {
-        errorText.innerText = "Mã nhóm này đã tồn tại! Vui lòng chọn mã khác.";
-        errorText.classList.remove("hidden");
+        errorText.innerText = "Mã nhóm này đã tồn tại! Vui lòng quay lại tạo mã khác.";
         return;
     }
 
@@ -154,7 +173,7 @@ function handleCreateGroup() {
     enterApp();
 }
 
-function handleJoinGroup() {
+async function handleJoinGroup() {
     const inputGroupId = document.getElementById("join-group-id").value.trim();
     const inputMssv = document.getElementById("join-mssv").value.trim();
     const errorText = document.getElementById("join-error");
@@ -165,18 +184,23 @@ function handleJoinGroup() {
         return;
     }
 
+    // 🔴 FIX LỖI Ở ĐÂY: Ép tải dữ liệu mới nhất từ Cloud trước khi check đăng nhập
+    errorText.innerText = "Đang kết nối...";
+    errorText.style.color = "#38bdf8"; 
+    errorText.classList.remove("hidden");
+    await syncDataSilently();
+    errorText.style.color = "#f43f5e"; // Đổi lại màu đỏ cho lỗi
+
     if (!appData.groups[inputGroupId]) {
         errorText.innerText = "Mã nhóm không tồn tại!";
-        errorText.classList.remove("hidden");
         return;
     }
 
     const targetGroup = appData.groups[inputGroupId];
-
     const member = targetGroup.members.find(m => m.mssv === inputMssv);
+    
     if (!member) {
         errorText.innerText = "Bạn không có trong danh sách nhóm này!";
-        errorText.classList.remove("hidden");
         return;
     }
 
@@ -211,22 +235,19 @@ function handleLogout() {
 
 function handleLeaveGroup() {
     if (currentUser.role === 'leader') {
-        if (confirm("CẢNH BÁO: Bạn là Trưởng nhóm! Việc thoát nhóm sẽ XÓA TOÀN BỘ dữ liệu của nhóm này vĩnh viễn trên Cloud. Bạn có chắc chắn muốn xóa nhóm không?")) {
+        if (confirm("CẢNH BÁO: Việc thoát nhóm sẽ XÓA TOÀN BỘ dữ liệu vĩnh viễn trên Cloud. Bạn có chắc chắn?")) {
             delete appData.groups[currentGroupId];
             saveData();
-            clearSession();
             handleLogout();
             alert("Đã xóa nhóm thành công!");
         }
     } else {
-        if (confirm("Bạn có chắc chắn muốn thoát khỏi nhóm này không? Dữ liệu và nhiệm vụ của bạn sẽ bị xóa.")) {
+        if (confirm("Bạn có chắc chắn muốn thoát khỏi nhóm? Nhiệm vụ của bạn sẽ bị xóa.")) {
             currentGroup.members = currentGroup.members.filter(m => m.mssv !== currentUser.mssv);
             currentGroup.tasks = currentGroup.tasks.filter(t => t.assignee !== currentUser.name);
-            
             saveData();
-            clearSession();
             handleLogout();
-            alert("Bạn đã thoát khỏi nhóm thành công.");
+            alert("Đã thoát nhóm.");
         }
     }
 }
@@ -278,7 +299,6 @@ function enterApp() {
 
 function initAppPermissions() {
     const leaderElements = document.querySelectorAll(".leader-only");
-    
     if (currentUser.role === "member") {
         leaderElements.forEach(el => el.classList.add("hidden"));
         document.getElementById("settings-content").classList.add("hidden");
@@ -299,7 +319,6 @@ function renderApp() {
 
 function addMember() {
     if (currentUser.role !== 'leader') return;
-    
     const errorText = document.getElementById("add-member-error");
     errorText.classList.add("hidden");
 
@@ -319,30 +338,16 @@ function addMember() {
         return;
     }
 
-    const exists = currentGroup.members.find(m => m.mssv === mssv);
-    if (exists) {
+    if (currentGroup.members.find(m => m.mssv === mssv)) {
         errorText.innerText = "Mã sinh viên này đã tồn tại trong nhóm!";
         errorText.classList.remove("hidden");
         return;
     }
 
-    currentGroup.members.push({
-        name: name,
-        mssv: mssv,
-        role: "Thành viên",
-        task: taskText,
-        uploadedFile: ""
-    });
-
-    currentGroup.tasks.push({
-        id: Date.now(),
-        text: taskText,
-        assignee: name,
-        completed: false
-    });
+    currentGroup.members.push({ name, mssv, role: "Thành viên", task: taskText, uploadedFile: "" });
+    currentGroup.tasks.push({ id: Date.now(), text: taskText, assignee: name, completed: false });
 
     saveData();
-
     document.getElementById("new-member-name").value = "";
     document.getElementById("new-member-mssv").value = "";
     document.getElementById("new-member-task").value = "";
@@ -364,11 +369,8 @@ function renderMembersTable() {
     
     currentGroup.members.forEach(m => {
         const tr = document.createElement("tr");
-        
         let displayMssv = m.mssv;
-        if (currentUser.role === 'member' && m.mssv !== currentUser.mssv) {
-            displayMssv = maskMssv(m.mssv);
-        }
+        if (currentUser.role === 'member' && m.mssv !== currentUser.mssv) displayMssv = maskMssv(m.mssv);
 
         tr.innerHTML = `
             <td><strong>${m.name}</strong> ${m.role === 'Trưởng nhóm' ? '👑' : ''}</td>
@@ -392,7 +394,6 @@ function renderTasks() {
         infoDiv.classList.add("task-info");
 
         const canEditCheck = (currentUser.role === 'leader') || (currentUser.name === task.assignee);
-        
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.checked = task.completed;
@@ -407,11 +408,9 @@ function renderTasks() {
         
         const actionsDiv = document.createElement("div");
         actionsDiv.classList.add("task-actions");
-
         const assigneeSpan = document.createElement("span");
         assigneeSpan.classList.add("task-assignee");
         assigneeSpan.innerText = task.assignee;
-
         actionsDiv.appendChild(assigneeSpan);
 
         if (currentUser.role === 'leader') {
@@ -424,10 +423,8 @@ function renderTasks() {
         
         li.appendChild(infoDiv);
         li.appendChild(actionsDiv);
-        
         taskList.appendChild(li);
     });
-
     updateProgress();
 }
 
@@ -446,10 +443,8 @@ function editTask(id) {
         const newText = prompt("Sửa tên nhiệm vụ:", task.text);
         if (newText !== null && newText.trim() !== "") {
             task.text = newText;
-            
             const member = currentGroup.members.find(m => m.name === task.assignee);
             if (member) member.task = newText;
-
             saveData();
             renderTasks();
             renderMembersTable();
@@ -468,7 +463,6 @@ function updateProgress() {
 
 function updateTimer() {
     if (!currentGroup.examDate) return;
-    
     const now = new Date().getTime();
     const distance = currentGroup.examDate - now;
 
@@ -483,10 +477,8 @@ function updateTimer() {
     const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
     document.getElementById("timer").innerHTML = 
-        String(days).padStart(2, '0') + "d : " + 
-        String(hours).padStart(2, '0') + "h : " + 
-        String(minutes).padStart(2, '0') + "m : " + 
-        String(seconds).padStart(2, '0') + "s";
+        String(days).padStart(2, '0') + "d : " + String(hours).padStart(2, '0') + "h : " + 
+        String(minutes).padStart(2, '0') + "m : " + String(seconds).padStart(2, '0') + "s";
 }
 
 function editExamDate() {
@@ -498,12 +490,9 @@ function editExamDate() {
             currentGroup.examDateString = newDate;
             currentGroup.examDate = parsed;
             saveData();
-
             document.getElementById("exam-date-text").innerText = `Deadline: ${currentGroup.examDateString.replace("T", " ")}`;
             updateTimer();
-        } else {
-            alert("Định dạng ngày không hợp lệ!");
-        }
+        } else alert("Định dạng ngày không hợp lệ!");
     }
 }
 
@@ -514,9 +503,7 @@ function renderDocuments() {
     currentGroup.members.forEach((m, index) => {
         const docCard = document.createElement("div");
         docCard.classList.add("doc-card");
-        
         const canUpload = (currentUser.role === 'leader') || (currentUser.name === m.name);
-        
         const fileDisplay = m.uploadedFile ? `<strong style="color: #38bdf8;">${m.uploadedFile}</strong>` : `<i>Chưa có file</i>`;
         
         docCard.innerHTML = `
@@ -533,16 +520,12 @@ function renderDocuments() {
 
 function handleUpload(memberIndex) {
     const fileInput = document.getElementById(`file-input-${memberIndex}`);
-    
     if (fileInput.files.length > 0) {
-        const fileName = fileInput.files[0].name;
-        currentGroup.members[memberIndex].uploadedFile = fileName;
+        currentGroup.members[memberIndex].uploadedFile = fileInput.files[0].name;
         saveData();
         renderDocuments();
-        alert(`Đã nộp file "${fileName}" thành công!`);
-    } else {
-        alert("Vui lòng chọn một file trước khi bấm Nộp!");
-    }
+        alert(`Đã nộp file thành công!`);
+    } else alert("Vui lòng chọn một file trước khi bấm Nộp!");
 }
 
 function updateGroupPurpose() {
@@ -550,10 +533,9 @@ function updateGroupPurpose() {
     if (newPurpose) {
         currentGroup.purpose = newPurpose;
         saveData();
-
         document.getElementById("header-title").innerText = currentGroup.purpose;
         document.getElementById("display-group-purpose").innerText = currentGroup.purpose;
-        alert("Cập nhật mục đích nhóm thành công!");
+        alert("Cập nhật thành công!");
     }
 }
 
@@ -563,7 +545,7 @@ function updateMaxMembers() {
         currentGroup.maxMembers = newMax;
         saveData();
         renderMembersTable();
-        alert("Cập nhật số lượng thành viên thành công!");
+        alert("Cập nhật thành công!");
     } else {
         alert("Số lượng tối đa không thể nhỏ hơn số thành viên hiện tại!");
         document.getElementById("setting-max-members").value = currentGroup.maxMembers;
@@ -577,11 +559,8 @@ navItems.forEach(item => {
     item.addEventListener('click', () => {
         navItems.forEach(nav => nav.classList.remove('active'));
         item.classList.add('active');
-        
         viewSections.forEach(section => section.classList.add('hidden'));
-        
-        const targetId = item.getAttribute('data-target');
-        document.getElementById(targetId).classList.remove('hidden');
+        document.getElementById(item.getAttribute('data-target')).classList.remove('hidden');
     });
 });
 
@@ -595,11 +574,7 @@ function checkSession() {
             if (member) {
                 currentGroupId = sessionData.groupId;
                 currentGroup = targetGroup;
-                currentUser = { 
-                    name: member.name, 
-                    mssv: member.mssv, 
-                    role: member.role === "Trưởng nhóm" ? "leader" : "member" 
-                };
+                currentUser = { name: member.name, mssv: member.mssv, role: member.role === "Trưởng nhóm" ? "leader" : "member" };
                 enterApp();
                 return;
             }
@@ -609,4 +584,6 @@ function checkSession() {
     document.getElementById("main-app").classList.add("hidden");
 }
 
+// KHỞI ĐỘNG CHƯƠNG TRÌNH & BẬT ĐỒNG BỘ NGẦM (MỖI 2 GIÂY)
 loadDataFromCloud();
+setInterval(syncDataSilently, 2000);
